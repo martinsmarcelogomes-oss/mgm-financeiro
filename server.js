@@ -170,9 +170,20 @@ app.post('/webhook/whatsapp', async (req, res) => {
       return;
     }
 
+    // Uma foto/PDF novo sempre inicia um lançamento novo, mesmo que exista
+    // uma confirmação antiga pendente sem resposta.
+    if (mediaUrl) {
+      if (state) {
+        await sendMessage(phone, '⚠️ Havia um lançamento anterior pendente de confirmação, foi cancelado automaticamente.');
+      }
+      clearState(phone);
+      await iniciarLancamento(phone, user.id, { mediaUrl, texto, mediaContentType });
+      return;
+    }
+
     if (!state) {
       // Novo lançamento
-      if (!mediaUrl && !texto) return;
+      if (!texto) return;
       await iniciarLancamento(phone, user.id, { mediaUrl, texto, mediaContentType });
       return;
     }
