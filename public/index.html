@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -26,4 +25,103 @@
 
   <nav class="abas" id="abas">
     <button class="aba ativa" data-slug="">Todos</button>
-    <button
+    <button class="aba" data-slug="pessoal">Pessoal</button>
+    <button class="aba" data-slug="fazenda">Fazenda</button>
+    <button class="aba" data-slug="mgm">MGM</button>
+  </nav>
+
+  <div class="filtros">
+    <label class="filtro-mes">
+      <span>Mês</span>
+      <input type="month" id="filtro-mes" />
+    </label>
+    <label class="filtro-excluidos">
+      <input type="checkbox" id="filtro-excluidos" />
+      <span>Ver excluídos</span>
+    </label>
+    <div class="filtros-espaco"></div>
+    <span class="contador" id="contador"></span>
+  </div>
+
+  <div class="tabela-wrap">
+    <table id="tabela">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Centro</th>
+          <th>Categoria</th>
+          <th class="col-valor">Valor</th>
+          <th>Pagamento</th>
+          <th>Estabelecimento</th>
+          <th>Lançado por</th>
+          <th class="col-acoes">Ações</th>
+        </tr>
+      </thead>
+      <tbody id="tabela-corpo">
+        <tr><td colspan="8" class="vazio">Carregando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Modal de edição -->
+<div class="modal-fundo" id="modal-fundo">
+  <div class="modal">
+    <h2>Editar lançamento</h2>
+    <form id="form-editar">
+      <input type="hidden" id="editar-id" />
+
+      <label>
+        <span>Tipo</span>
+        <select id="editar-tipo">
+          <option value="despesa">Despesa</option>
+          <option value="receita">Receita</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Valor (R$)</span>
+        <input type="number" step="0.01" id="editar-valor" required />
+      </label>
+
+      <label>
+        <span>Data</span>
+        <input type="date" id="editar-data" />
+      </label>
+
+      <label>
+        <span>Centro de custo</span>
+        <select id="editar-centro"></select>
+      </label>
+
+      <label>
+        <span>Categoria</span>
+        <select id="editar-categoria"></select>
+      </label>
+
+      <label>
+        <span>Forma de pagamento</span>
+        <select id="editar-pagamento"></select>
+      </label>
+
+      <label>
+        <span>Estabelecimento</span>
+        <input type="text" id="editar-estabelecimento" />
+      </label>
+
+      <label>
+        <span>Descrição</span>
+        <input type="text" id="editar-descricao" />
+      </label>
+
+      <div class="modal-acoes">
+        <button type="button" class="btn btn-secundario" id="btn-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primario">Salvar alterações</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
