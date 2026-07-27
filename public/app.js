@@ -2,8 +2,13 @@ const estado = {
   meta: null,
   centroAtivo: '',
   mes: '',
+  ano: '',
   verExcluidos: false,
+  modo: 'lancamentos',
 };
+
+let graficoSaldo = null;
+let graficoReceitaDespesa = null;
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -208,7 +213,7 @@ $('#abas').addEventListener('click', (ev) => {
   $$('.aba').forEach((a) => a.classList.remove('ativa'));
   btn.classList.add('ativa');
   estado.centroAtivo = btn.dataset.slug;
-  carregarEntradas();
+  atualizarVisaoAtiva();
 });
 
 $('#filtro-mes').addEventListener('change', (ev) => {
@@ -229,10 +234,233 @@ function exigirAutenticacao() {
     </div>`;
 }
 
+function atualizarVisaoAtiva() {
+  if (estado.modo === 'lancamentos') {
+    carregarEntradas();
+  } else {
+    carregarFluxoDeCaixa();
+  }
+}
+
+// ---------- Alternância de modo (Lançamentos / Fluxo de Caixa) ----------
+$('#modos').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.modo');
+  if (!btn) return;
+  $$('.modo').forEach((m) => m.classList.remove('ativo'));
+  btn.classList.add('ativo');
+  estado.modo = btn.dataset.modo;
+
+  $('#view-lancamentos').classList.toggle('escondido', estado.modo !== 'lancamentos');
+  $('#view-fluxo').classList.toggle('escondido', estado.modo !== 'fluxo');
+
+  atualizarVisaoAtiva();
+});
+
+$('#filtro-ano').addEventListener('change', (ev) => {
+  estado.ano = ev.target.value;
+  carregarFluxoDeCaixa();
+});
+
+// ---------- Fluxo de caixa: carregar e renderizar ----------
+async function carregarFluxoDeCaixa() {
+  const params = new URLSearchParams();
+  if (estado.centroAtivo) params.set('cost_center', estado.centroAtivo);
+  if (estado.ano) params.set('year', estado.ano);
+
+  const res = await fetch(`/api/relatorio?${params.toString()}`);
+  if (res.status === 401) return exigirAutenticacao();
+  const dados = await res.json();
+
+  renderizarCartoesFluxo(dados);
+  renderizarGraficoSaldo(dados);
+  renderizarGraficoReceitaDespesa(dados);
+  renderizarTopDespesas(dados);
+}
+
+function renderizarCartoesFluxo(dados) {
+  const lucroClasse = dados.lucroLiquido >= 0 ? 'receita' : '';
+  $('#resumo-fluxo').innerHTML = `
+    <div class="cartao">
+      <div class="cartao-titulo">Total de Receitas</div>
+      <div class="cartao-valor receita">${formatarMoeda(dados.totalReceitas)}</div>
+    </div>
+    <div class="cartao">
+      <div class="cartao-titulo">Total de Despesas</div>
+      <div class="cartao-valor">${formatarMoeda(dados.totalDespesas)}</div>
+    </div>
+    <div class="cartao">
+      <div class="cartao-titulo">Lucro Líquido</div>
+      <div class="cartao-valor ${lucroClasse}">${formatarMoeda(dados.lucroLiquido)}</div>
+    </div>
+    <div class="cartao cartao-lucratividade">
+      <div class="cartao-titulo">Lucratividade</div>
+      <div class="cartao-valor">${dados.lucratividade.toFixed(1)}%</div>
+    </div>
+  `;
+}
+
+const NOMES_MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function renderizarGraficoSaldo(dados) {
+  const ctx = $('#grafico-saldo').getContext('2d');
+  const saldos = dados.meses.map((m) => m.saldo);
+
+  if (graficoSaldo) graficoSaldo.destroy();
+  graficoSaldo = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: NOMES_MESES,
+      datasets: [
+        {
+          label: 'Saldo',
+          data: saldos,
+          borderColor: '#C08A2E',
+          backgroundColor: 'rgba(192,138,46,0.15)',
+          tension: 0.35,
+          fill: true,
+          pointRadius: 3,
+        },
+      ],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: (v) => formatarMoeda(v) } },
+      },
+    },
+  });
+}
+
+function renderizarGraficoReceitaDespesa(dados) {
+  const ctx = $('#grafico-receita-despesa').getContext('2d');
+  const receitas = dados.meses.map((m) => m.receitas);
+  const despesas = dados.meses.map((m) => -m.despesas);
+
+  if (graficoReceitaDespesa) graficoReceitaDespesa.destroy();
+  graficoReceitaDespesa = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: NOMES_MESES,
+      datasets: [
+        { label: 'Receita', data: receitas, backgroundColor: '#2F6B4F' },
+        { label: 'Despesa', data: despesas, backgroundColor: '#A6472E' },
+      ],
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y: { ticks: { callback: (v) => formatarMoeda(Math.abs(v)) } },
+      },
+    },
+  });
+}
+
+function renderizarTopDespesas(dados) {
+  const max = Math.max(...dados.topDespesas.map((d) => d.valor), 1);
+  $('#top-despesas').innerHTML = dados.topDespesas.length
+    ? dados.topDespesas
+        .map(
+          (d) => `
+        <div class="top-despesa-item">
+          <span class="top-despesa-nome">${d.categoria}</span>
+          <div class="top-despesa-barra-wrap">
+            <div class="top-despesa-barra" style="width:${(d.valor / max) * 100}%"></div>
+          </div>
+          <span class="top-despesa-valor">${formatarMoeda(d.valor)}</span>
+        </div>`
+        )
+        .join('')
+    : '<p class="vazio">Nenhuma despesa no período.</p>';
+}
+
+// ---------- Gerenciar categorias ----------
+$('#btn-categorias').addEventListener('click', () => {
+  const selCentro = $('#categoria-centro-select');
+  selCentro.innerHTML = estado.meta.costCenters.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+  renderizarListaCategorias();
+  $('#modal-categorias-fundo').classList.add('aberto');
+});
+
+$('#btn-fechar-categorias').addEventListener('click', () => {
+  $('#modal-categorias-fundo').classList.remove('aberto');
+  carregarMeta(); // recarrega categorias atualizadas para os selects de edição
+});
+
+$('#categoria-centro-select').addEventListener('change', renderizarListaCategorias);
+
+function renderizarListaCategorias() {
+  const centroId = Number($('#categoria-centro-select').value);
+  const categorias = estado.meta.categories.filter((c) => c.cost_center_id === centroId);
+
+  $('#lista-categorias').innerHTML = categorias
+    .map(
+      (c) => `
+      <li class="${c.active ? '' : 'inativa'}" data-id="${c.id}">
+        <input type="text" value="${c.name}" data-id="${c.id}" />
+        <button class="btn-icone" data-acao="renomear" data-id="${c.id}">Salvar</button>
+        <button class="btn-icone ${c.active ? 'excluir' : 'restaurar'}" data-acao="${c.active ? 'desativar' : 'reativar'}" data-id="${c.id}">
+          ${c.active ? 'Desativar' : 'Reativar'}
+        </button>
+      </li>`
+    )
+    .join('');
+}
+
+$('#lista-categorias').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-acao]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const acao = btn.dataset.acao;
+
+  if (acao === 'renomear') {
+    const input = document.querySelector(`#lista-categorias input[data-id="${id}"]`);
+    await fetch(`/api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: input.value }),
+    });
+  }
+
+  if (acao === 'desativar' || acao === 'reativar') {
+    await fetch(`/api/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: acao === 'reativar' }),
+    });
+  }
+
+  await carregarMeta();
+  renderizarListaCategorias();
+});
+
+$('#form-nova-categoria').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const nome = $('#nova-categoria-nome').value.trim();
+  const centroId = Number($('#categoria-centro-select').value);
+  if (!nome) return;
+
+  const res = await fetch('/api/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cost_center_id: centroId, name: nome }),
+  });
+
+  if (res.ok) {
+    $('#nova-categoria-nome').value = '';
+    await carregarMeta();
+    renderizarListaCategorias();
+  } else {
+    const erro = await res.json();
+    alert(erro.error || 'Não foi possível adicionar a categoria.');
+  }
+});
+
 // ---------- Inicialização ----------
 (async function init() {
   estado.mes = mesAtualISO();
+  estado.ano = String(new Date().getFullYear());
   $('#filtro-mes').value = estado.mes;
+  $('#filtro-ano').value = estado.ano;
   await carregarMeta();
   await carregarEntradas();
 })();
