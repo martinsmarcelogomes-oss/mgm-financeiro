@@ -27,6 +27,12 @@ async function analisarComprovante(mediaUrl, categoriasDisponiveis) {
 
   const listaCategorias = categoriasDisponiveis.map((c) => c.name).join(', ');
 
+  // PDF usa o bloco "document"; fotos (jpeg/png/webp) usam o bloco "image"
+  const isPdf = mimeType.includes('pdf');
+  const conteudoArquivo = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } };
+
   const msg = await anthropic.messages.create({
     model: MODEL,
     max_tokens: 500,
@@ -34,7 +40,7 @@ async function analisarComprovante(mediaUrl, categoriasDisponiveis) {
       {
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+          conteudoArquivo,
           {
             type: 'text',
             text: `Analise este comprovante/nota fiscal e responda APENAS com um JSON válido (sem markdown, sem texto extra), no formato:
