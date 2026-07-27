@@ -304,3 +304,122 @@ td.valor.receita { color: var(--verde-receita); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ---------- Alternância de modo (Lançamentos / Fluxo de Caixa) ---------- */
+.modos {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.modo {
+  font-family: 'Fraunces', serif;
+  font-size: 15px;
+  font-weight: 600;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 6px 2px;
+  margin-right: 22px;
+  cursor: pointer;
+  color: var(--tinta-suave);
+}
+.modo.ativo {
+  color: var(--verde-pasto);
+  border-bottom-color: var(--mostarda);
+}
+
+.escondido { display: none !important; }
+
+/* ---------- Cartões do fluxo de caixa ---------- */
+.resumo-fluxo { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.cartao-lucratividade .cartao-valor { color: var(--mostarda-escura); }
+
+/* ---------- Gráficos ---------- */
+.grafico-card {
+  background: var(--branco);
+  border: 1px solid var(--papel-linha);
+  border-radius: var(--raio);
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--sombra);
+}
+.grafico-card h3 {
+  font-family: 'Fraunces', serif;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--verde-pasto);
+}
+
+/* ---------- Top 5 despesas (lista de barras) ---------- */
+.top-despesa-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.top-despesa-nome {
+  width: 140px;
+  flex-shrink: 0;
+  color: var(--tinta-suave);
+}
+.top-despesa-barra-wrap {
+  flex: 1;
+  background: var(--papel);
+  border-radius: 4px;
+  overflow: hidden;
+  height: 18px;
+}
+.top-despesa-barra {
+  background: var(--rust);
+  height: 100%;
+  border-radius: 4px;
+}
+.top-despesa-valor {
+  font-family: 'IBM Plex Mono', monospace;
+  width: 90px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ---------- Gerenciar categorias ---------- */
+.campo-centro-categoria {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--tinta-suave);
+  margin-bottom: 14px;
+}
+.lista-categorias {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--papel-linha);
+  border-radius: 8px;
+}
+.lista-categorias li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--papel-linha);
+  font-size: 13.5px;
+}
+.lista-categorias li:last-child { border-bottom: none; }
+.lista-categorias li.inativa { opacity: 0.5; }
+.lista-categorias input[type="text"] {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+.form-nova-categoria {
+  display: flex;
+  gap: 8px;
+}
+.form-nova-categoria input {
+  flex: 1;
+}
