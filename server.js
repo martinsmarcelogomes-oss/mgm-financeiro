@@ -42,13 +42,13 @@ function formatarLista(titulo, itens, nomeFn) {
 
 // ---------- Máquina de estados ----------
 
-async function iniciarLancamento(phone, userId, { mediaUrl, texto }) {
+async function iniciarLancamento(phone, userId, { mediaUrl, texto, mediaContentType }) {
   const categoriasTodas = db.prepare('SELECT * FROM categories').all();
   let draft = { user_id: userId, raw_message: texto || null, type: 'despesa' };
 
   if (mediaUrl) {
-    await sendMessage(phone, '📸 Recebi a foto, analisando o comprovante...');
-    const dados = await analisarComprovante(mediaUrl, categoriasTodas);
+    await sendMessage(phone, '📸 Recebi o arquivo, analisando o comprovante...');
+    const dados = await analisarComprovante(mediaUrl, categoriasTodas, mediaContentType);
     draft.valor = dados.valor;
     draft.entry_date = dados.data;
     draft.vendor = dados.estabelecimento;
@@ -145,6 +145,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
   const phone = req.body.From; // formato whatsapp:+55...
   const texto = (req.body.Body || '').trim();
   const mediaUrl = req.body.NumMedia && Number(req.body.NumMedia) > 0 ? req.body.MediaUrl0 : null;
+  const mediaContentType = req.body.MediaContentType0 || null;
 
   try {
     if (!AUTHORIZED.includes(phone)) {
@@ -170,7 +171,7 @@ app.post('/webhook/whatsapp', async (req, res) => {
     if (!state) {
       // Novo lançamento
       if (!mediaUrl && !texto) return;
-      await iniciarLancamento(phone, user.id, { mediaUrl, texto });
+      await iniciarLancamento(phone, user.id, { mediaUrl, texto, mediaContentType });
       return;
     }
 
