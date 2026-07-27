@@ -22,13 +22,17 @@ async function downloadTwilioMedia(mediaUrl) {
 /**
  * Analisa a foto de um comprovante/nota fiscal e extrai os dados estruturados.
  */
-async function analisarComprovante(mediaUrl, categoriasDisponiveis) {
-  const { base64, mimeType } = await downloadTwilioMedia(mediaUrl);
+async function analisarComprovante(mediaUrl, categoriasDisponiveis, contentTypeHint) {
+  const { base64, mimeType: mimeTypeBaixado } = await downloadTwilioMedia(mediaUrl);
+
+  // Preferimos o tipo que o próprio Twilio informou no webhook (mais confiável);
+  // se não vier, usamos o que detectamos ao baixar o arquivo.
+  const mimeType = contentTypeHint || mimeTypeBaixado;
 
   const listaCategorias = categoriasDisponiveis.map((c) => c.name).join(', ');
 
   // PDF usa o bloco "document"; fotos (jpeg/png/webp) usam o bloco "image"
-  const isPdf = mimeType.includes('pdf');
+  const isPdf = mimeType.toLowerCase().includes('pdf');
   const conteudoArquivo = isPdf
     ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
     : { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } };
