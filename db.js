@@ -11,8 +11,24 @@ db.pragma('journal_mode = WAL');
 function initDb() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   db.exec(schema);
+  migrate();
   seedUsers();
   console.log('Banco de dados inicializado em', DB_PATH);
+}
+
+// Adiciona colunas novas em bancos já existentes (sem apagar dados),
+// necessárias para o painel: exclusão lógica e data de edição.
+function migrate() {
+  const colunas = db.prepare('PRAGMA table_info(entries)').all().map((c) => c.name);
+  if (!colunas.includes('deleted')) {
+    db.exec('ALTER TABLE entries ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!colunas.includes('deleted_at')) {
+    db.exec('ALTER TABLE entries ADD COLUMN deleted_at TEXT');
+  }
+  if (!colunas.includes('updated_at')) {
+    db.exec('ALTER TABLE entries ADD COLUMN updated_at TEXT');
+  }
 }
 
 // Cadastra automaticamente os dois usuários com base nas variáveis de ambiente,
