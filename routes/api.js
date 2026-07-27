@@ -113,4 +113,91 @@ router.post('/entries/:id/restore', (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Criar categoria ----------
+router.post('/categories', (req, res) => {
+  const { cost_center_id, name } = req.body;
+  if (!cost_center_id || !name || !name.trim()) {
+    return res.status(400).json({ error: 'Centro de custo e nome são obrigatórios' });
+  }
+  try {
+    const info = db
+      .prepare('INSERT INTO categories (cost_center_id, name) VALUES (?, ?)')
+      .run(cost_center_id, name.trim());
+    res.json({ id: info.lastInsertRowid, cost_center_id, name: name.trim(), active: 1 });
+  } catch (err) {
+    res.status(400).json({ error: 'Essa categoria já existe nesse centro de custo' });
+  }
+});
+
+// ---------- Renomear ou reativar/desativar categoria ----------
+router.put('/categories/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, active } = req.body;
+  db.prepare('UPDATE categories SET name = COALESCE(?, name), active = COALESCE(?, active) WHERE id = ?').run(
+    name ? name.trim() : null,
+    active === undefined ? null : active ? 1 : 0,
+    id
+  );
+  const updated = db.prepare('SELECT * FROM categories WHERE id = ?').get(id);
+  res.json(updated);
+});
+
+// ---------- Desativar categoria (não apaga histórico) ----------
+router.delete('/categories/:id', (req, res) => {
+  const { id } = req.params;
+  db.prepare('UPDATE categories SET active = 0 WHERE id = ?').run(id);
+  res.json({ ok: true });
+});
+
+// ---------- Relatório de fluxo de caixa por centro de custo e ano ----------
+router.get('/relatorio', (req, res) => {
+  const { cost_center, year } = req.query;
+  const ano = year || String(new Date().getFullYear());
+
+  let sql = `
+    SELECT e.type, e.value, e.category_id, substr(COALESCE(e.entry_date, e.created_at), 1, 7) as ym
+    FROM entries e
+    JOIN cost_centers cc ON e.cost_center_id = cc.id
+    WHERE e.deleted = 0 AND substr(COALESCE(e.entry_date, e.created_at), 1, 4) = ?
+  `;
+  const params = [ano];
+  if (cost_center) {
+    sql += ' AND cc.slug = ?';
+    params.push(cost_center);
+  }
+  const linhas = db.prepare(sql).all(...params);
+
+  const meses = Array.from({ length: 12 }, (_, i) => {
+    const mm = String(i + 1).padStart(2, '0');
+    const ym = `${ano}-${mm}`;
+    const doMes = linhas.filter((l) => l.ym === ym);
+    const receitas = doMes.filter((l) => l.type === 'receita').reduce((s, l) => s + l.value, 0);
+    const despesas = doMes.filter((l) => l.type === 'despesa').reduce((s, l) => s + l.value, 0);
+    return { mes: mm, receitas, despesas, saldo: receitas - despesas };
+  });
+
+  const totalReceitas = linhas.filter((l) => l.type === 'receita').reduce((s, l) => s + l.value, 0);
+  const totalDespesas = linhas.filter((l) => l.type === 'despesa').reduce((s, l) => s + l.value, 0);
+  const lucroLiquido = totalReceitas - totalDespesas;
+  const lucratividade = totalReceitas > 0 ? (lucroLiquido / totalReceitas) * 100 : 0;
+
+  const despesasPorCategoria = {};
+  linhas
+    .filter((l) => l.type === 'despesa')
+    .forEach((l) => {
+      const chave = l.category_id || 'sem_categoria';
+      despesasPorCategoria[chave] = (despesasPorCategoria[chave] || 0) + l.value;
+    });
+
+  const categorias = db.prepare('SELECT id, name FROM categories').all();
+  const mapaCategorias = Object.fromEntries(categorias.map((c) => [c.id, c.name]));
+
+  const topDespesas = Object.entries(despesasPorCategoria)
+    .map(([id, valor]) => ({ categoria: mapaCategorias[id] || 'Sem categoria', valor }))
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
+
+  res.json({ ano, meses, totalReceitas, totalDespesas, lucroLiquido, lucratividade, topDespesas });
+});
+
 module.exports = router;
