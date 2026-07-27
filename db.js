@@ -2,7 +2,9 @@ const Database = require('better-sqlite3');
 const fs = require('fs');
 const path = require('path');
 
-const DB_PATH = path.join(__dirname, 'mgm.db');
+// Se a variável DB_PATH estiver definida (ex: apontando pra um Volume persistente
+// no Railway), usamos ela. Senão, cai no caminho local (só para testes).
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'mgm.db');
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
