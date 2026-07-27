@@ -1,4 +1,3 @@
-
 const estado = {
   meta: null,
   centroAtivo: '',
