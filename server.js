@@ -49,7 +49,6 @@ async function iniciarLancamento(phone, userId, { mediaUrl, texto, mediaContentT
   let draft = { user_id: userId, raw_message: texto || null, type: 'despesa' };
 
   if (mediaUrl) {
-    await sendMessage(phone, '📸 Recebi o arquivo, analisando o comprovante...');
     const dados = await analisarComprovante(mediaUrl, categoriasTodas, mediaContentType);
     draft.valor = dados.valor;
     draft.entry_date = dados.data;
@@ -79,43 +78,29 @@ async function perguntarCentroCusto(phone, draft) {
   setState(phone, 'aguardando_centro', draft);
   const centros = getCostCenters();
   const valorFmt = draft.valor ? `R$ ${Number(draft.valor).toFixed(2)}` : '(valor não identificado)';
-  const resumo = `✅ Valor: ${valorFmt}${draft.vendor ? `\n🏪 ${draft.vendor}` : ''}\n\nEsse lançamento é de qual centro de custo?`;
+  const resumo = `✅ Valor: ${valorFmt}${draft.vendor ? `\n🏪 ${draft.vendor}` : ''}\n\nEsse lançamento é de qual centro de custo?\n_(digite "cancelar" a qualquer momento para desistir)_`;
   await sendMessage(phone, formatarLista(resumo, centros, (c) => c.name));
 }
 
-async function perguntarCategoria(phone, draft) {
-  setState(phone, 'aguardando_categoria', draft);
+async function perguntarCategoriaPagamento(phone, draft) {
+  setState(phone, 'aguardando_categoria_pagamento', draft);
   const categorias = getCategories(draft.cost_center_id);
-  await sendMessage(phone, formatarLista('📂 Qual a categoria?', categorias, (c) => c.name));
-}
-
-async function perguntarPagamento(phone, draft) {
-  setState(phone, 'aguardando_pagamento', draft);
   const metodos = getPaymentMethods();
-  await sendMessage(phone, formatarLista('💳 Qual a forma de pagamento?', metodos, (m) => m.name));
-}
 
-async function perguntarConfirmacao(phone, draft) {
-  setState(phone, 'aguardando_confirmacao', draft);
-  const centro = db.prepare('SELECT name FROM cost_centers WHERE id = ?').get(draft.cost_center_id);
-  const categoria = db.prepare('SELECT name FROM categories WHERE id = ?').get(draft.category_id);
-  const pagamento = db.prepare('SELECT name FROM payment_methods WHERE id = ?').get(draft.payment_method_id);
+  const listaCategorias = categorias.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+  const listaPagamentos = metodos.map((m, i) => `${i + 1}. ${m.name}`).join('\n');
 
-  const resumo = [
-    '📝 Confirme o lançamento:',
-    `Tipo: ${draft.type === 'receita' ? 'Receita' : 'Despesa'}`,
-    `Valor: R$ ${Number(draft.valor).toFixed(2)}`,
-    `Centro de custo: ${centro.name}`,
-    `Categoria: ${categoria.name}`,
-    `Pagamento: ${pagamento.name}`,
-    draft.vendor ? `Estabelecimento: ${draft.vendor}` : null,
+  const mensagem = [
+    '📂 Categoria:',
+    listaCategorias,
     '',
-    'Responda *1* para confirmar ou *2* para cancelar.',
-  ]
-    .filter(Boolean)
-    .join('\n');
+    '💳 Forma de pagamento:',
+    listaPagamentos,
+    '',
+    '_Responda com os dois números juntos, ex: 3 2 (categoria e pagamento)._',
+  ].join('\n');
 
-  await sendMessage(phone, resumo);
+  await sendMessage(phone, mensagem);
 }
 
 function salvarLancamento(draft) {
@@ -210,45 +195,42 @@ app.post('/webhook/whatsapp', async (req, res) => {
           return;
         }
         draft.cost_center_id = centros[idx].id;
-        await perguntarCategoria(phone, draft);
+        await perguntarCategoriaPagamento(phone, draft);
         return;
       }
 
-      case 'aguardando_categoria': {
+      case 'aguardando_categoria_pagamento': {
+        const numeros = texto.split(/[,\s]+/).filter(Boolean).map((n) => parseInt(n, 10));
         const categorias = getCategories(draft.cost_center_id);
-        const idx = parseInt(texto, 10) - 1;
-        if (isNaN(idx) || !categorias[idx]) {
-          await sendMessage(phone, 'Opção inválida. Responda com o número da categoria.');
-          return;
-        }
-        draft.category_id = categorias[idx].id;
-        await perguntarPagamento(phone, draft);
-        return;
-      }
-
-      case 'aguardando_pagamento': {
         const metodos = getPaymentMethods();
-        const idx = parseInt(texto, 10) - 1;
-        if (isNaN(idx) || !metodos[idx]) {
-          await sendMessage(phone, 'Opção inválida. Responda com o número da forma de pagamento.');
+        const [idxCategoria, idxPagamento] = numeros;
+
+        const categoria = categorias[idxCategoria - 1];
+        const pagamento = metodos[idxPagamento - 1];
+
+        if (!categoria || !pagamento) {
+          await sendMessage(phone, 'Não entendi. Responda com os dois números juntos, ex: 3 2 (categoria e pagamento).');
           return;
         }
-        draft.payment_method_id = metodos[idx].id;
-        await perguntarConfirmacao(phone, draft);
-        return;
-      }
 
-      case 'aguardando_confirmacao': {
-        if (texto === '1') {
-          salvarLancamento(draft);
-          clearState(phone);
-          await sendMessage(phone, '✅ Lançamento salvo com sucesso!');
-        } else if (texto === '2') {
-          clearState(phone);
-          await sendMessage(phone, '❌ Lançamento cancelado.');
-        } else {
-          await sendMessage(phone, 'Responda *1* para confirmar ou *2* para cancelar.');
-        }
+        draft.category_id = categoria.id;
+        draft.payment_method_id = pagamento.id;
+
+        salvarLancamento(draft);
+        clearState(phone);
+
+        const centro = db.prepare('SELECT name FROM cost_centers WHERE id = ?').get(draft.cost_center_id);
+        const resumo = [
+          '✅ Lançamento salvo!',
+          `${draft.type === 'receita' ? 'Receita' : 'Despesa'}: R$ ${Number(draft.valor).toFixed(2)}`,
+          `${centro.name} · ${categoria.name} · ${pagamento.name}`,
+          draft.vendor ? draft.vendor : null,
+          '',
+          '_Errou algo? Corrija no painel web._',
+        ]
+          .filter(Boolean)
+          .join('\n');
+        await sendMessage(phone, resumo);
         return;
       }
 
