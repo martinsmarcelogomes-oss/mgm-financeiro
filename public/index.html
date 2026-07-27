@@ -3,25 +3,27 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>MGM Financeiro — Livro de Lançamentos</title>
+<title>MGM Financeiro — Controle Financeiro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
 <body>
 
 <header class="topo">
   <div class="topo-titulo">
     <span class="topo-marca">MGM</span>
-    <h1>Livro de Lançamentos</h1>
+    <h1>Controle Financeiro</h1>
   </div>
   <div class="topo-sub">Pessoal · Fazenda · MGM Assessoria Veterinária</div>
 </header>
 
 <main>
-  <section class="resumo" id="resumo">
-    <!-- cartões de totais preenchidos via JS -->
-  </section>
+  <nav class="modos" id="modos">
+    <button class="modo ativo" data-modo="lancamentos">Lançamentos</button>
+    <button class="modo" data-modo="fluxo">Fluxo de Caixa</button>
+  </nav>
 
   <nav class="abas" id="abas">
     <button class="aba ativa" data-slug="">Todos</button>
@@ -30,38 +32,76 @@
     <button class="aba" data-slug="mgm">MGM</button>
   </nav>
 
-  <div class="filtros">
-    <label class="filtro-mes">
-      <span>Mês</span>
-      <input type="month" id="filtro-mes" />
-    </label>
-    <label class="filtro-excluidos">
-      <input type="checkbox" id="filtro-excluidos" />
-      <span>Ver excluídos</span>
-    </label>
-    <div class="filtros-espaco"></div>
-    <span class="contador" id="contador"></span>
-  </div>
+  <!-- ---------- Visão: Lançamentos ---------- -->
+  <section id="view-lancamentos">
+    <section class="resumo" id="resumo">
+      <!-- cartões de totais preenchidos via JS -->
+    </section>
 
-  <div class="tabela-wrap">
-    <table id="tabela">
-      <thead>
-        <tr>
-          <th>Data</th>
-          <th>Centro</th>
-          <th>Categoria</th>
-          <th class="col-valor">Valor</th>
-          <th>Pagamento</th>
-          <th>Estabelecimento</th>
-          <th>Lançado por</th>
-          <th class="col-acoes">Ações</th>
-        </tr>
-      </thead>
-      <tbody id="tabela-corpo">
-        <tr><td colspan="8" class="vazio">Carregando...</td></tr>
-      </tbody>
-    </table>
-  </div>
+    <div class="filtros">
+      <label class="filtro-mes">
+        <span>Mês</span>
+        <input type="month" id="filtro-mes" />
+      </label>
+      <label class="filtro-excluidos">
+        <input type="checkbox" id="filtro-excluidos" />
+        <span>Ver excluídos</span>
+      </label>
+      <div class="filtros-espaco"></div>
+      <button class="btn btn-secundario" id="btn-categorias">Gerenciar categorias</button>
+      <span class="contador" id="contador"></span>
+    </div>
+
+    <div class="tabela-wrap">
+      <table id="tabela">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Centro</th>
+            <th>Categoria</th>
+            <th class="col-valor">Valor</th>
+            <th>Pagamento</th>
+            <th>Estabelecimento</th>
+            <th>Lançado por</th>
+            <th class="col-acoes">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabela-corpo">
+          <tr><td colspan="8" class="vazio">Carregando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ---------- Visão: Fluxo de Caixa ---------- -->
+  <section id="view-fluxo" class="escondido">
+    <div class="filtros">
+      <label class="filtro-mes">
+        <span>Ano</span>
+        <input type="number" id="filtro-ano" min="2020" max="2100" step="1" />
+      </label>
+      <div class="filtros-espaco"></div>
+    </div>
+
+    <section class="resumo resumo-fluxo" id="resumo-fluxo">
+      <!-- cartões de receitas/despesas/lucro/lucratividade -->
+    </section>
+
+    <div class="grafico-card">
+      <h3>Saldo disponível mês a mês</h3>
+      <canvas id="grafico-saldo" height="90"></canvas>
+    </div>
+
+    <div class="grafico-card">
+      <h3>Receita x Despesa mensal</h3>
+      <canvas id="grafico-receita-despesa" height="110"></canvas>
+    </div>
+
+    <div class="grafico-card">
+      <h3>Despesas | Top 5 categorias</h3>
+      <div id="top-despesas"></div>
+    </div>
+  </section>
 </main>
 
 <!-- Modal de edição -->
@@ -119,6 +159,29 @@
         <button type="submit" class="btn btn-primario">Salvar alterações</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal de categorias -->
+<div class="modal-fundo" id="modal-categorias-fundo">
+  <div class="modal">
+    <h2>Gerenciar categorias</h2>
+
+    <label class="campo-centro-categoria">
+      <span>Centro de custo</span>
+      <select id="categoria-centro-select"></select>
+    </label>
+
+    <ul class="lista-categorias" id="lista-categorias"></ul>
+
+    <form id="form-nova-categoria" class="form-nova-categoria">
+      <input type="text" id="nova-categoria-nome" placeholder="Nova categoria" required />
+      <button type="submit" class="btn btn-primario">Adicionar</button>
+    </form>
+
+    <div class="modal-acoes">
+      <button type="button" class="btn btn-secundario" id="btn-fechar-categorias">Fechar</button>
+    </div>
   </div>
 </div>
 
