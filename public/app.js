@@ -36,6 +36,10 @@ async function carregarMeta() {
   const res = await fetch('/api/meta');
   if (res.status === 401) return exigirAutenticacao();
   estado.meta = await res.json();
+
+  const resUsers = await fetch('/api/users');
+  estado.usuarios = resUsers.ok ? await resUsers.json() : [];
+
   preencherSelects();
 }
 
@@ -49,6 +53,11 @@ function preencherSelects() {
   selPagamento.innerHTML = estado.meta.paymentMethods
     .map((p) => `<option value="${p.id}">${p.name}</option>`)
     .join('');
+
+  const selUsuario = $('#editar-usuario');
+  if (selUsuario) {
+    selUsuario.innerHTML = (estado.usuarios || []).map((u) => `<option value="${u.id}">${u.name}</option>`).join('');
+  }
 
   atualizarCategoriasDoModal();
   selCentro.addEventListener('change', atualizarCategoriasDoModal);
@@ -159,6 +168,9 @@ $('#tabela-corpo').addEventListener('click', async (ev) => {
 
 // ---------- Modal de edição ----------
 function abrirModalEdicao(entrada) {
+  $('#modal-editar-titulo').textContent = 'Editar lançamento';
+  $('#campo-lancado-por').classList.add('escondido');
+
   $('#editar-id').value = entrada.id;
   $('#editar-tipo').value = entrada.type;
   $('#editar-valor').value = entrada.value;
@@ -171,6 +183,24 @@ function abrirModalEdicao(entrada) {
   $('#editar-descricao').value = entrada.description || '';
   $('#modal-fundo').classList.add('aberto');
 }
+
+function abrirModalNovoLancamento() {
+  $('#modal-editar-titulo').textContent = 'Novo lançamento';
+  $('#campo-lancado-por').classList.remove('escondido');
+
+  $('#editar-id').value = '';
+  $('#editar-tipo').value = 'despesa';
+  $('#editar-valor').value = '';
+  $('#editar-data').value = new Date().toISOString().slice(0, 10);
+  $('#editar-centro').value = estado.meta.costCenters[0]?.id || '';
+  atualizarCategoriasDoModal();
+  $('#editar-pagamento').value = estado.meta.paymentMethods[0]?.id || '';
+  $('#editar-estabelecimento').value = '';
+  $('#editar-descricao').value = '';
+  $('#modal-fundo').classList.add('aberto');
+}
+
+$('#btn-novo-lancamento').addEventListener('click', abrirModalNovoLancamento);
 
 function fecharModal() {
   $('#modal-fundo').classList.remove('aberto');
@@ -196,11 +226,25 @@ $('#form-editar').addEventListener('submit', async (ev) => {
     description: $('#editar-descricao').value || null,
   };
 
-  await fetch(`/api/entries/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
+  if (id) {
+    await fetch(`/api/entries/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } else {
+    payload.user_id = Number($('#editar-usuario').value);
+    const res = await fetch('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const erro = await res.json();
+      alert(erro.error || 'Não foi possível salvar o lançamento.');
+      return;
+    }
+  }
 
   fecharModal();
   carregarEntradas();
