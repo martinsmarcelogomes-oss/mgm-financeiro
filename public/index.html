@@ -49,6 +49,7 @@
       </label>
       <div class="filtros-espaco"></div>
       <button class="btn btn-secundario" id="btn-categorias">Gerenciar categorias</button>
+      <button class="btn btn-primario" id="btn-novo-lancamento">+ Novo lançamento</button>
       <span class="contador" id="contador"></span>
     </div>
 
@@ -107,9 +108,14 @@
 <!-- Modal de edição -->
 <div class="modal-fundo" id="modal-fundo">
   <div class="modal">
-    <h2>Editar lançamento</h2>
+    <h2 id="modal-editar-titulo">Editar lançamento</h2>
     <form id="form-editar">
       <input type="hidden" id="editar-id" />
+
+      <label id="campo-lancado-por" class="escondido">
+        <span>Lançado por</span>
+        <select id="editar-usuario"></select>
+      </label>
 
       <label>
         <span>Tipo</span>
