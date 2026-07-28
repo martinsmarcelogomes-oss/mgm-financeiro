@@ -200,4 +200,50 @@ router.get('/relatorio', (req, res) => {
   res.json({ ano, meses, totalReceitas, totalDespesas, lucroLiquido, lucratividade, topDespesas });
 });
 
+// ---------- Usuários (para saber quem está lançando pelo painel) ----------
+router.get('/users', (req, res) => {
+  const users = db.prepare('SELECT id, name FROM users WHERE active = 1 ORDER BY id').all();
+  res.json(users);
+});
+
+// ---------- Criar um novo lançamento direto pelo painel ----------
+router.post('/entries', (req, res) => {
+  const {
+    user_id,
+    type,
+    value,
+    cost_center_id,
+    category_id,
+    payment_method_id,
+    entry_date,
+    vendor,
+    description,
+  } = req.body;
+
+  if (!user_id || !value || !cost_center_id || !category_id || !payment_method_id) {
+    return res.status(400).json({ error: 'Preencha usuário, valor, centro de custo, categoria e pagamento.' });
+  }
+
+  const info = db
+    .prepare(
+      `INSERT INTO entries
+        (user_id, cost_center_id, category_id, payment_method_id, type, value, description, vendor, entry_date, raw_message)
+       VALUES (@user_id, @cost_center_id, @category_id, @payment_method_id, @type, @value, @description, @vendor, @entry_date, 'Lançado pelo painel')`
+    )
+    .run({
+      user_id,
+      cost_center_id,
+      category_id,
+      payment_method_id,
+      type: type || 'despesa',
+      value,
+      description: description || null,
+      vendor: vendor || null,
+      entry_date: entry_date || null,
+    });
+
+  const novo = db.prepare('SELECT * FROM entries WHERE id = ?').get(info.lastInsertRowid);
+  res.json(novo);
+});
+
 module.exports = router;
