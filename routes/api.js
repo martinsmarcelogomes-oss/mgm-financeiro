@@ -3,25 +3,6 @@ const { db } = require('../db');
 
 const router = express.Router();
 
-// ---------- Autenticação simples por senha (Basic Auth) ----------
-router.use((req, res, next) => {
-  const senha = process.env.DASHBOARD_PASSWORD;
-  if (!senha) return next(); // se não configurada, não bloqueia (não recomendado)
-
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Basic ')) {
-    res.set('WWW-Authenticate', 'Basic realm="MGM Financeiro"');
-    return res.status(401).send('Autenticação necessária');
-  }
-  const decoded = Buffer.from(auth.split(' ')[1], 'base64').toString();
-  const [, pass] = decoded.split(':');
-  if (pass !== senha) {
-    res.set('WWW-Authenticate', 'Basic realm="MGM Financeiro"');
-    return res.status(401).send('Senha incorreta');
-  }
-  next();
-});
-
 // ---------- Dados de apoio (centros de custo, categorias, formas de pagamento) ----------
 router.get('/meta', (req, res) => {
   const costCenters = db.prepare('SELECT * FROM cost_centers WHERE active = 1 ORDER BY id').all();
